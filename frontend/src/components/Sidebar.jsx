@@ -24,7 +24,9 @@ export default function Sidebar({ doc, onFileLoad, onProcess, onReset, canProces
     <aside className="sb">
       <div className="sb-sec">
         <div className="sec-lbl">📂 Document</div>
-        <FileUpload onFileLoad={onFileLoad} disabled={processing} />
+        {!hasFile ? (
+          <FileUpload onFileLoad={onFileLoad} disabled={processing} />
+        ) : null}
         {error && <p className="text-sm" style={{ color: 'var(--red)' }}>{error}</p>}
         {hasFile && (
           <div className="file-card">
