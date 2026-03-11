@@ -4,6 +4,14 @@ export default function FileUpload({ onFileLoad, disabled }) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState(null);
   const fileRef = useRef(null);
+  const processingRef = useRef(false);
+
+  const handleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled || processingRef.current) return;
+    fileRef.current?.click();
+  };
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -31,35 +39,38 @@ export default function FileUpload({ onFileLoad, disabled }) {
   };
 
   const handleFileSelect = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     if (file.type !== 'application/pdf') {
       setError('Please upload a PDF file');
       return;
     }
     setError(null);
+    processingRef.current = true;
     onFileLoad(file);
     e.target.value = '';
+    setTimeout(() => { processingRef.current = false; }, 500);
   };
 
   return (
     <div className="space-y-2">
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        onChange={handleFileSelect}
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+        disabled={disabled}
+        tabIndex={-1}
+      />
       <div
         className={`dropzone ${isDragging ? 'on' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileRef.current?.click()}
-        style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
+        onClick={handleClick}
+        style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, position: 'relative' }}
       >
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf,application/pdf"
-          onChange={handleFileSelect}
-          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: disabled ? 'not-allowed' : 'pointer', pointerEvents: disabled ? 'none' : 'auto' }}
-          disabled={disabled}
-        />
         <div className="dz-icon">📄</div>
         <div className="dz-title">Drop PDF here</div>
         <div className="dz-hint">or click to browse</div>
