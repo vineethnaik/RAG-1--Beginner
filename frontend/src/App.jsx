@@ -8,6 +8,7 @@ import InputArea from './components/InputArea';
 
 export default function App() {
   const [rawText, setRawText] = useState('');
+  const [openSource, setOpenSource] = useState(null);
   const doc = useDocumentStore();
   const chat = useChat(doc.chunks, doc.index);
 
@@ -19,6 +20,7 @@ export default function App() {
   const handleReset = () => {
     setRawText('');
     chat.clearChat();
+    setOpenSource(null);
   };
 
   const handleProcess = async () => {
@@ -26,13 +28,13 @@ export default function App() {
     await doc.processText(rawText, doc.fileName);
     chat.setMessages([{
       role: 'assistant',
-      text: `**"${doc.fileName}"** is indexed! Ask me anything about it.`,
+      text: `📄 **"${doc.fileName}"** is ready.\n\nBuilt a **BM25 retrieval index** over **${doc.chunks?.length ?? 0} chunks** from **${doc.pageCount} pages** — with stemming, stopword removal, query expansion, and context stitching for accurate answers on any question.\n\nAsk me **anything** about this document.`,
       sources: [],
     }]);
   };
 
   return (
-    <div className="app-grid min-h-screen bg-dark-bg">
+    <div className="app">
       <Header
         loading={chat.loading}
         stage={chat.loadingStage}
@@ -46,11 +48,15 @@ export default function App() {
         onReset={handleReset}
         canProcess={!!rawText}
       />
-      <main className="main-col flex flex-col pt-[58px]">
+      <main className="mn">
         <ChatArea
           messages={chat.messages}
           loading={chat.loading}
           loadingStage={chat.loadingStage}
+          processed={doc.processed}
+          onSend={chat.sendMessage}
+          openSource={openSource}
+          onOpenSource={setOpenSource}
         />
         <InputArea
           processed={doc.processed}
