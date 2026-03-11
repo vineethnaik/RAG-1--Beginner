@@ -25,10 +25,12 @@ export default function App() {
 
   const handleProcess = async () => {
     if (!rawText) return;
-    await doc.processText(rawText, doc.fileName);
+    const result = await doc.processText(rawText, doc.fileName);
+    const chunkCount = result?.chunks?.length ?? doc.chunks?.length ?? 0;
+    const pageCount = doc.pageCount ?? 0;
     chat.setMessages([{
       role: 'assistant',
-      text: `📄 **"${doc.fileName}"** is ready.\n\nBuilt a **BM25 retrieval index** over **${doc.chunks?.length ?? 0} chunks** from **${doc.pageCount} pages** — with stemming, stopword removal, query expansion, and context stitching for accurate answers on any question.\n\nAsk me **anything** about this document.`,
+      text: `📄 **"${doc.fileName}"** is ready.\n\nBuilt a **BM25 retrieval index** over **${chunkCount} chunks** from **${pageCount} pages** — with stemming, stopword removal, query expansion, and context stitching for accurate answers on any question.\n\nAsk me **anything** about this document.`,
       sources: [],
     }]);
   };
