@@ -36,3 +36,76 @@ aside {
 .prose-invert strong {
   @apply text-accent-gold;
 }
+
+/* Markdown rendering for LLM answers */
+.md-content {
+  @apply space-y-3;
+}
+
+.md-content .md-h1 {
+  @apply text-xl font-bold text-accent-gold mt-4 first:mt-0;
+}
+
+.md-content .md-h2 {
+  @apply text-lg font-semibold text-accent-gold mt-3 first:mt-0;
+}
+
+.md-content .md-h3 {
+  @apply text-base font-medium text-text-primary mt-2 first:mt-0;
+}
+
+.md-content .md-para {
+  @apply my-1.5 leading-relaxed;
+}
+
+.md-content .md-num-list {
+  @apply flex flex-col gap-2 my-2;
+}
+
+.md-content .md-num-item {
+  @apply flex gap-2.5 items-start;
+}
+
+.md-content .md-num {
+  @apply shrink-0 w-6 h-6 rounded-full bg-accent-gold/30 text-accent-gold flex items-center justify-center text-xs font-bold;
+}
+
+.md-content .md-num-content {
+  @apply flex-1 leading-relaxed;
+}
+
+.md-content .md-bullet-list {
+  @apply flex flex-col gap-1.5 my-2;
+}
+
+.md-content .md-bullet-item {
+  @apply flex gap-2 items-start;
+}
+
+.md-content .md-dot {
+  @apply shrink-0 w-1.5 h-1.5 rounded-full bg-accent-gold mt-1.5;
+}
+
+.md-content .md-sub-list {
+  @apply ml-6 mt-1.5 flex flex-col gap-1;
+}
+
+.md-content .md-sub-item {
+  @apply flex gap-2 items-start text-text-secondary;
+}
+
+.md-content .md-dot-sm {
+  @apply shrink-0 w-1 h-1 rounded-full bg-text-muted mt-1.5;
+}
+
+.md-content .inline-code {
+  @apply font-mono text-sm bg-dark-surface2 px-1.5 py-0.5 rounded text-accent-gold;
+}
+
+.md-content .src-badge {
+  @apply inline-flex items-center px-1.5 py-0.5 rounded bg-accent-gold/25 text-accent-gold text-sm font-medium border border-accent-gold/40 mx-0.5;
+}
+
+.md-content strong {
+  @apply text-accent-gold font-semibold;
+}
