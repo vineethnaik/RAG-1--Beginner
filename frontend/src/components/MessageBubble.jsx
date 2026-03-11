@@ -1,35 +1,128 @@
 import { User } from 'lucide-react';
 import SourceChip from './SourceChip';
 
-function renderAnswer(text) {
-  if (!text) return null;
-  const parts = text.split(/(\[Source \d+\])/g);
-  return parts.map((part, i) => {
-    const sourceMatch = part.match(/\[Source (\d+)\]/);
-    if (sourceMatch) {
-      return (
-        <span
-          key={i}
-          className="inline-flex items-center px-1.5 py-0.5 rounded bg-accent-gold/25 text-accent-gold text-sm font-medium mx-0.5"
-        >
-          {part}
-        </span>
-      );
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatInline(text) {
+  return escapeHtml(text)
+    .replace(/\[Source (\d+)\]/g, '<span class="src-badge">[S$1]</span>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  const lines = text.split(/\n/);
+  const blocks = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed === '') {
+      i++;
+      continue;
     }
-    const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
-    return boldParts.map((bp, j) => {
-      if (bp.startsWith('**') && bp.endsWith('**')) {
-        return <strong key={`${i}-${j}`} className="text-accent-gold font-semibold">{bp.slice(2, -2)}</strong>;
-      }
-      const codeParts = bp.split(/(`[^`]+`)/g);
-      return codeParts.map((cp, k) => {
-        if (cp.startsWith('`') && cp.endsWith('`')) {
-          return <code key={`${i}-${j}-${k}`} className="font-mono text-sm bg-dark-surface2 px-1 rounded">{cp.slice(1, -1)}</code>;
+
+    if (trimmed.startsWith('### ')) {
+      blocks.push(`<div class="md-h3">${formatInline(trimmed.slice(4))}</div>`);
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      blocks.push(`<div class="md-h2">${formatInline(trimmed.slice(3))}</div>`);
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      blocks.push(`<div class="md-h1">${formatInline(trimmed.slice(2))}</div>`);
+      i++;
+      continue;
+    }
+
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+    if (numMatch) {
+      const numItems = [];
+      while (i < lines.length) {
+        const l = lines[i];
+        const t = l.trim();
+        const m = t.match(/^(\d+)\.\s+(.*)$/);
+        if (m) {
+          numItems.push({ num: m[1], content: m[2] });
+          i++;
+        } else if (l.match(/^\s{2,}/) && t) {
+          const subContent = t.replace(/^[-*•]\s*/, '');
+          if (numItems.length) {
+            numItems[numItems.length - 1].subItems = numItems[numItems.length - 1].subItems || [];
+            numItems[numItems.length - 1].subItems.push(subContent);
+          }
+          i++;
+        } else if (t === '') {
+          break;
+        } else {
+          break;
         }
-        return <span key={`${i}-${j}-${k}`}>{cp}</span>;
-      });
-    });
-  });
+      }
+      blocks.push('<div class="md-num-list">' + numItems.map((item) =>
+        '<div class="md-num-item">' +
+        '<span class="md-num">' + item.num + '</span>' +
+        '<span class="md-num-content">' + formatInline(item.content) +
+        (item.subItems?.length ? '<div class="md-sub-list">' + item.subItems.map(s =>
+          '<div class="md-sub-item"><span class="md-dot-sm"></span>' + formatInline(s) + '</div>'
+        ).join('') + '</div>' : '') +
+        '</span></div>'
+      ).join('') + '</div>');
+      continue;
+    }
+
+    if (/^[-*•]\s/.test(trimmed)) {
+      const bulletItems = [];
+      while (i < lines.length) {
+        const l = lines[i];
+        const t = l.trim();
+        const indent = (l.match(/^(\s*)/) || [''])[1].length;
+        const bulletMatch = t.match(/^[-*•]\s+(.*)$/);
+        if (bulletMatch && indent < 2) {
+          bulletItems.push({ content: bulletMatch[1], sub: false });
+          i++;
+        } else if (indent >= 2 && t && bulletItems.length > 0) {
+          const subContent = t.replace(/^[-*•]\s*/, '');
+          if (bulletItems.length) {
+            bulletItems[bulletItems.length - 1].subItems = bulletItems[bulletItems.length - 1].subItems || [];
+            bulletItems[bulletItems.length - 1].subItems.push(subContent);
+          }
+          i++;
+        } else if (t === '') {
+          break;
+        } else {
+          break;
+        }
+      }
+      blocks.push('<div class="md-bullet-list">' + bulletItems.map((item) =>
+        '<div class="md-bullet-item">' +
+        '<span class="md-dot"></span>' +
+        '<span class="md-bullet-content">' + formatInline(item.content) +
+        (item.subItems?.length ? '<div class="md-sub-list">' + item.subItems.map(s =>
+          '<div class="md-sub-item"><span class="md-dot-sm"></span>' + formatInline(s) + '</div>'
+        ).join('') + '</div>' : '') +
+        '</span></div>'
+      ).join('') + '</div>');
+      continue;
+    }
+
+    blocks.push('<p class="md-para">' + formatInline(trimmed) + '</p>');
+    i++;
+  }
+
+  return blocks.join('');
 }
 
 export default function MessageBubble({ message }) {
@@ -50,9 +143,10 @@ export default function MessageBubble({ message }) {
           {message.error ? (
             <p className="text-status-error text-sm">{message.error}</p>
           ) : message.text ? (
-            <div className="text-text-primary text-sm leading-relaxed whitespace-pre-wrap prose prose-invert prose-sm max-w-none">
-              {renderAnswer(message.text)}
-            </div>
+            <div
+              className="md-content text-text-primary text-sm leading-relaxed max-w-none"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
+            />
           ) : null}
         </div>
         {!isUser && message.sources?.length > 0 && (
