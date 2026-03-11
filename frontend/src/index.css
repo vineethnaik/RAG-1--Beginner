@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark-bg text-text-primary font-sans antialiased;
+  }
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "header header"
+    "sidebar main";
+}
+
+.app-grid .main-col {
+  grid-area: main;
+  min-height: calc(100vh - 58px);
+  margin-left: 0;
+}
+
+header {
+  grid-area: header;
+}
+
+aside {
+  grid-area: sidebar;
+  margin-top: 58px;
+}
+
+/* Prose overrides for dark theme */
+.prose-invert strong {
+  @apply text-accent-gold;
+}
