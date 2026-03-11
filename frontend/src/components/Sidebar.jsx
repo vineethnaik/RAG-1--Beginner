@@ -14,7 +14,7 @@ const querySteps = [
   { lbl: 'LLM', sub: 'Cited answer generation', stage: 'answer' },
 ];
 
-export default function Sidebar({ doc, onFileLoad, onProcess, onReset, canProcess }) {
+export default function Sidebar({ doc, onFileLoad, onProcess, onReset, canProcess, loading, queryStage = 0 }) {
   const { fileName, fileSize, pageCount, chunks, index, processing, processed, progress, progressLabel, error, reset } = doc;
   const hasFile = !!fileName;
 
@@ -84,17 +84,22 @@ export default function Sidebar({ doc, onFileLoad, onProcess, onReset, canProces
               </div>
             </div>
           ))}
-          {querySteps.map((s, i) => (
-            <div className="pipe-step" key={`q-${i}`}>
-              <div className={`pipe-num ${doc.processing === false && processed && s.stage === 'answer' ? 'ps-done' : ''}`} style={{ opacity: 0.6 }}>
-                {6 + i}
+          {querySteps.map((s, i) => {
+            const stepNum = 6 + i;
+            const done = queryStage > i + 1;
+            const active = loading && queryStage === i + 1;
+            return (
+              <div className="pipe-step" key={`q-${i}`}>
+                <div className={`pipe-num ${done ? 'ps-done' : active ? 'ps-active' : ''}`}>
+                  {done ? '✓' : stepNum}
+                </div>
+                <div>
+                  <div className="pipe-lbl">{s.lbl}</div>
+                  <div className="pipe-sub">{s.sub}</div>
+                </div>
               </div>
-              <div>
-                <div className="pipe-lbl">{s.lbl}</div>
-                <div className="pipe-sub">{s.sub}</div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

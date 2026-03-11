@@ -6,6 +6,8 @@ export function useChat(chunks, index) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState('');
+  const [queryStage, setQueryStage] = useState(0);
+  // 0 = no query yet, 1 = expanding query, 2 = retrieving chunks, 3 = generating answer, 4 = fully done
 
   const sendMessage = useCallback(async (question) => {
     if (!question.trim() || !index || loading) return;
@@ -15,11 +17,15 @@ export function useChat(chunks, index) {
 
     try {
       setLoadingStage('Expanding query...');
+      setQueryStage(1);
       const terms = await expandQuery(question);
       setLoadingStage('Retrieving chunks...');
+      setQueryStage(2);
       const topChunks = search(terms, chunks, index, 6);
       setLoadingStage('Generating answer...');
+      setQueryStage(3);
       const answer = await generateAnswer(question, topChunks, history);
+      setQueryStage(4);
       setMessages(prev => [
         ...prev,
         { role: 'assistant', text: answer, sources: topChunks, expandedTerms: terms },
@@ -35,7 +41,10 @@ export function useChat(chunks, index) {
     }
   }, [chunks, index, loading, messages]);
 
-  const clearChat = useCallback(() => setMessages([]), []);
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    setQueryStage(0);
+  }, []);
 
-  return { messages, loading, loadingStage, sendMessage, clearChat, setMessages };
+  return { messages, loading, loadingStage, queryStage, sendMessage, clearChat, setMessages };
 }

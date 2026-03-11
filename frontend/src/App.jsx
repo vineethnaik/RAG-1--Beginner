@@ -49,6 +49,8 @@ export default function App() {
         onProcess={handleProcess}
         onReset={handleReset}
         canProcess={!!rawText}
+        loading={chat.loading}
+        queryStage={chat.queryStage}
       />
       <main className="mn">
         <ChatArea
