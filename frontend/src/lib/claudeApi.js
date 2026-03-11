@@ -1,24 +1,25 @@
-// Groq API - supports streaming
+// src/lib/claudeApi.js
+// Groq API with Llama 3.3 70B
+
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+const MODEL = 'llama-3.3-70b-versatile';
 
-function getApiKey() {
-  const key = import.meta.env.VITE_GROQ_API_KEY;
-  if (!key) throw new Error('VITE_GROQ_API_KEY is missing. Add it to your .env file.');
-  return key;
-}
-
-async function callGroq(messages, systemPrompt, maxTokens = 1000, model = DEFAULT_MODEL) {
+async function callGroq(messages, systemPrompt, maxTokens = 1000) {
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  if (!apiKey) throw new Error('VITE_GROQ_API_KEY is missing. Add it to your .env file.');
   const response = await fetch(GROQ_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getApiKey()}`,
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model,
+      model: MODEL,
       max_tokens: maxTokens,
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
     }),
   });
   const data = await response.json();
@@ -26,62 +27,15 @@ async function callGroq(messages, systemPrompt, maxTokens = 1000, model = DEFAUL
   return data.choices[0].message.content;
 }
 
-export async function groqStream(messages, systemPrompt, maxTokens, model, onChunk) {
-  const response = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getApiKey()}`,
-    },
-    body: JSON.stringify({
-      model: model || DEFAULT_MODEL,
-      max_tokens: maxTokens || 1200,
-      stream: true,
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
-    }),
-  });
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error?.message || 'Stream request failed');
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let fullText = '';
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-        try {
-          const json = JSON.parse(line.slice(6));
-          const delta = json.choices?.[0]?.delta?.content;
-          if (delta) {
-            fullText += delta;
-            onChunk(fullText);
-          }
-        } catch (_) {}
-      }
-    }
-  }
-  return fullText;
-}
-
-export async function expandQuery(question, model = DEFAULT_MODEL) {
+export async function expandQuery(question) {
   try {
     const result = await callGroq(
       [{
         role: 'user',
-        content: `Question: "${question}"\n\nExtract 8-12 key search terms, synonyms, and related concepts. Return ONLY a JSON array: ["term1","term2"]`,
+        content: `Question: "${question}"\n\nExtract 8-12 key search terms, synonyms, and related concepts that would help find relevant passages. Include nouns, verbs, technical terms. Return ONLY a JSON array of strings. Example: ["term1","term2"]`,
       }],
       'You extract search keywords. Return only valid JSON arrays, no other text.',
-      200,
-      model
+      200
     );
     const clean = result.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
@@ -91,39 +45,52 @@ export async function expandQuery(question, model = DEFAULT_MODEL) {
   }
 }
 
-export function buildSystemPrompt(context, responseLength = 'normal') {
-  const maxTokens = responseLength === 'concise' ? 600 : responseLength === 'detailed' ? 1800 : 1200;
-  return `You are DocQuery, a clean and precise document analyst AI.
-FORMATTING RULES:
-1. For summaries: use ## Section Title headers then bullet lists
-2. For list questions: use numbered list "Title: description [Source N]"
-3. Cite sources inline as [Source 1], [Source 2]
-4. Use **bold** for title/label before colon
-5. No filler - start with content
-6. If not in context: "This is not covered in the uploaded document."
-7. Never invent information
-${responseLength === 'concise' ? '8. Be brief - 2-4 bullet points or 1-2 sentences.' : ''}
-${responseLength === 'detailed' ? '8. Be thorough - include all relevant details.' : ''}
+export async function generateAnswer(question, contextChunks, history = []) {
+  const context = contextChunks
+    .map((c, i) => `[Source ${i + 1} — Chunk #${c.idx + 1}]:\n${c.chunk.text}`)
+    .join('\n\n---\n\n');
+
+  const systemPrompt = `You are DocQuery, a clean and precise document analyst AI.
+
+FORMATTING RULES — follow these exactly:
+1. For summaries or "key points" questions: use ## Section Title headers then bullet lists under each
+2. For "list" or "find" questions: use a numbered list where each item is: "Title: description [Source N]"
+3. For factual questions: answer in 1-3 clear sentences with inline citations [Source N]
+4. ALWAYS cite sources inline as [Source 1], [Source 2] — place citation at end of each point
+5. Keep each numbered/bullet item to ONE LINE where possible — title then brief fact
+6. Use **bold** only for the title/label part of each item (before the colon)
+7. Do NOT write long paragraphs for list-type questions — use structured lists
+8. Do NOT add filler like "Here are the key points:" — start directly with the content
+9. If answer not in context: say exactly "This is not covered in the uploaded document."
+10. Never invent information
+
+OUTPUT FORMAT EXAMPLES:
+
+For "summarize" questions:
+## Overview
+- **Main topic**: Brief description [Source 1]
+- **Key fact**: Brief description [Source 2]
+
+## Section Name
+- **Item**: Description [Source 3]
+
+For "list findings" questions:
+1. **Title**: One line description [Source 1]
+2. **Title**: One line description [Source 2]
+3. **Title**: One line description with sub-details:
+   - Sub point one
+   - Sub point two [Source 3]
 
 DOCUMENT CONTEXT:
 ${context}`;
-}
 
-export async function generateAnswer(question, contextChunks, history = [], opts = {}) {
-  const { model = DEFAULT_MODEL, maxTokens = 1200, stream = false, onChunk } = opts;
-
-  const context = contextChunks
-    .map((c, i) => `[Source ${i + 1} — Chunk #${c.idx + 1}${c.chunk.docName ? ` (${c.chunk.docName})` : ''}]:\n${c.chunk.text}`)
-    .join('\n\n---\n\n');
-
-  const systemPrompt = buildSystemPrompt(context, opts.responseLength);
   const msgs = [
-    ...history.slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text || '' })).filter(m => m.content),
+    ...history
+      .slice(-6)
+      .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text || '' }))
+      .filter(m => m.content),
     { role: 'user', content: question },
   ];
 
-  if (stream && onChunk) {
-    return groqStream(msgs, systemPrompt, maxTokens, model, onChunk);
-  }
-  return callGroq(msgs, systemPrompt, maxTokens, model);
+  return callGroq(msgs, systemPrompt, 1200);
 }
