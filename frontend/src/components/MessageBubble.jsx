@@ -1,6 +1,3 @@
-import { User } from 'lucide-react';
-import SourceChip from './SourceChip';
-
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -19,152 +16,139 @@ function formatInline(text) {
 
 function renderMarkdown(text) {
   if (!text) return '';
-  const lines = text.split(/\n/);
-  const blocks = [];
+  const lines = text.split('\n');
+  const out = [];
   let i = 0;
 
   while (i < lines.length) {
     const line = lines[i];
-    const trimmed = line.trim();
+    const t = line.trim();
+    if (!t) { i++; continue; }
 
-    if (trimmed === '') {
+    if (t.startsWith('### ')) {
+      out.push(`<div class="md-h3">${formatInline(t.slice(4))}</div>`);
       i++;
       continue;
     }
-
-    if (trimmed.startsWith('### ')) {
-      blocks.push(`<div class="md-h3">${formatInline(trimmed.slice(4))}</div>`);
+    if (t.startsWith('## ')) {
+      out.push(`<div class="md-h2">${formatInline(t.slice(3))}</div>`);
       i++;
       continue;
     }
-    if (trimmed.startsWith('## ')) {
-      blocks.push(`<div class="md-h2">${formatInline(trimmed.slice(3))}</div>`);
-      i++;
-      continue;
-    }
-    if (trimmed.startsWith('# ')) {
-      blocks.push(`<div class="md-h1">${formatInline(trimmed.slice(2))}</div>`);
+    if (t.startsWith('# ')) {
+      out.push(`<div class="md-h1">${formatInline(t.slice(2))}</div>`);
       i++;
       continue;
     }
 
-    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
-    if (numMatch) {
-      const numItems = [];
-      while (i < lines.length) {
-        const l = lines[i];
-        const t = l.trim();
-        const m = t.match(/^(\d+)\.\s+(.*)$/);
-        if (m) {
-          numItems.push({ num: m[1], content: m[2] });
-          i++;
-        } else if (l.match(/^\s{2,}/) && t) {
-          const subContent = t.replace(/^[-*•]\s*/, '');
-          if (numItems.length) {
-            numItems[numItems.length - 1].subItems = numItems[numItems.length - 1].subItems || [];
-            numItems[numItems.length - 1].subItems.push(subContent);
-          }
-          i++;
-        } else if (t === '') {
-          break;
-        } else {
-          break;
+    if (/^\d+\.\s/.test(t)) {
+      const items = [];
+      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
+        const content = lines[i].trim().replace(/^\d+\.\s+/, '');
+        const subs = [];
+        let j = i + 1;
+        while (j < lines.length && /^[\s\t]+[-*•]\s/.test(lines[j])) {
+          subs.push(lines[j].trim().replace(/^[-*•]\s+/, ''));
+          j++;
         }
+        items.push({ content, subs });
+        i = j;
       }
-      blocks.push('<div class="md-num-list">' + numItems.map((item) =>
-        '<div class="md-num-item">' +
-        '<span class="md-num">' + item.num + '</span>' +
-        '<span class="md-num-content">' + formatInline(item.content) +
-        (item.subItems?.length ? '<div class="md-sub-list">' + item.subItems.map(s =>
-          '<div class="md-sub-item"><span class="md-dot-sm"></span>' + formatInline(s) + '</div>'
-        ).join('') + '</div>' : '') +
-        '</span></div>'
-      ).join('') + '</div>');
+      out.push(`<div class="md-num-list">${items.map((it, n) => {
+        const colonIdx = it.content.indexOf(': ');
+        const hasTitle = colonIdx > 0 && colonIdx < 60;
+        const titlePart = hasTitle ? it.content.slice(0, colonIdx) : '';
+        const bodyPart = hasTitle ? it.content.slice(colonIdx + 2) : it.content;
+        const innerHtml = hasTitle
+          ? `<span class="md-num-title">${formatInline(titlePart)}</span><span class="md-num-body"> — ${formatInline(bodyPart)}</span>`
+          : formatInline(it.content);
+        const subHtml = it.subs?.length
+          ? `<div class="md-sub-list">${it.subs.map(s => `<div class="md-sub-item"><span class="md-dot-sm">◦</span><span>${formatInline(s)}</span></div>`).join('')}</div>`
+          : '';
+        return `<div class="md-num-item"><span class="md-num">${n + 1}</span><span class="md-num-content">${innerHtml}${subHtml}</span></div>`;
+      }).join('')}</div>`);
       continue;
     }
 
-    if (/^[-*•]\s/.test(trimmed)) {
-      const bulletItems = [];
-      while (i < lines.length) {
-        const l = lines[i];
-        const t = l.trim();
-        const indent = (l.match(/^(\s*)/) || [''])[1].length;
-        const bulletMatch = t.match(/^[-*•]\s+(.*)$/);
-        if (bulletMatch && indent < 2) {
-          bulletItems.push({ content: bulletMatch[1], sub: false });
-          i++;
-        } else if (indent >= 2 && t && bulletItems.length > 0) {
-          const subContent = t.replace(/^[-*•]\s*/, '');
-          if (bulletItems.length) {
-            bulletItems[bulletItems.length - 1].subItems = bulletItems[bulletItems.length - 1].subItems || [];
-            bulletItems[bulletItems.length - 1].subItems.push(subContent);
-          }
-          i++;
-        } else if (t === '') {
-          break;
-        } else {
-          break;
-        }
+    if (/^[-*•]\s/.test(t)) {
+      const items = [];
+      while (i < lines.length && /^[-*•]\s/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^[-*•]\s+/, ''));
+        i++;
       }
-      blocks.push('<div class="md-bullet-list">' + bulletItems.map((item) =>
-        '<div class="md-bullet-item">' +
-        '<span class="md-dot"></span>' +
-        '<span class="md-bullet-content">' + formatInline(item.content) +
-        (item.subItems?.length ? '<div class="md-sub-list">' + item.subItems.map(s =>
-          '<div class="md-sub-item"><span class="md-dot-sm"></span>' + formatInline(s) + '</div>'
-        ).join('') + '</div>' : '') +
-        '</span></div>'
-      ).join('') + '</div>');
+      out.push(`<div class="md-bullet-list">${items.map(it => {
+        const ci = it.indexOf(': ');
+        const hasT = ci > 0 && ci < 60;
+        const inner = hasT
+          ? `<strong>${formatInline(it.slice(0, ci))}</strong>: ${formatInline(it.slice(ci + 2))}`
+          : formatInline(it);
+        return `<div class="md-bullet-item"><span class="md-dot">▸</span><span>${inner}</span></div>`;
+      }).join('')}</div>`);
       continue;
     }
 
-    blocks.push('<p class="md-para">' + formatInline(trimmed) + '</p>');
-    i++;
+    const paras = [];
+    while (i < lines.length && lines[i].trim() &&
+      !/^#{1,3}\s/.test(lines[i].trim()) &&
+      !/^\d+\.\s/.test(lines[i].trim()) &&
+      !/^[-*•]\s/.test(lines[i].trim())) {
+      paras.push(lines[i].trim());
+      i++;
+    }
+    if (paras.length) out.push(`<p class="md-para">${formatInline(paras.join(' '))}</p>`);
   }
 
-  return blocks.join('');
+  return out.join('');
 }
 
-export default function MessageBubble({ message }) {
+export default function MessageBubble({ message, msgIndex, openSource, onOpenSource }) {
   const isUser = message.role === 'user';
+  const keyBase = `${msgIndex}`;
 
   return (
-    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
-      <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${isUser ? 'bg-gradient-to-br from-accent-gold to-accent-orange' : 'bg-dark-surface2'}`}>
-        {isUser ? <User className="w-4 h-4 text-dark-bg" /> : (
-          <span className="text-sm font-serif text-accent-gold">DQ</span>
-        )}
-      </div>
-      <div className={`flex-1 min-w-0 max-w-[85%] ${isUser ? 'text-right' : ''}`}>
-        <div className={`
-          inline-block px-4 py-3 rounded-2xl
-          ${isUser ? 'bg-gradient-to-br from-accent-gold/20 to-accent-orange/20 border border-accent-gold/30' : 'bg-dark-surface2 border border-dark-border'}
-        `}>
-          {message.error ? (
-            <p className="text-status-error text-sm">{message.error}</p>
-          ) : message.text ? (
-            <div
-              className="md-content text-text-primary text-sm leading-relaxed max-w-none"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
-            />
-          ) : null}
-        </div>
-        {!isUser && message.sources?.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs text-text-muted mb-2">Sources:</p>
-            <div className="flex flex-wrap gap-2">
-              {message.sources.map((s, i) => (
-                <SourceChip key={i} source={s} index={i} />
-              ))}
-            </div>
+    <div className={`msg msg-${isUser ? 'u' : 'a'}`}>
+      <div className="msg-lbl">{isUser ? 'YOU' : 'DOCQUERY'}</div>
+      {message.error ? (
+        <div className="err">⚠️ {message.error}</div>
+      ) : (
+        <div
+          className={`bubble ${isUser ? 'b-u' : 'b-a'}`}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text || '') }}
+        />
+      )}
+      {!isUser && message.sources?.length > 0 && (
+        <div className="srcs">
+          <div className="srcs-title">📎 Sources referenced</div>
+          <div className="src-chips">
+            {message.sources.map((s, si) => {
+              const key = `${keyBase}-${si}`;
+              const isOpen = openSource === key;
+              return (
+                <div
+                  key={si}
+                  className={`src-chip ${isOpen ? 'open' : ''}`}
+                  onClick={() => onOpenSource?.(isOpen ? null : key)}
+                >
+                  <span className="src-n">S{si + 1}</span>
+                  Source {si + 1}
+                </div>
+              );
+            })}
           </div>
-        )}
-        {!isUser && message.expandedTerms?.length > 0 && (
-          <p className="mt-2 text-xs text-text-muted">
-            Query terms: {message.expandedTerms.join(', ')}
-          </p>
-        )}
-      </div>
+          {message.sources.map((s, si) => {
+            if (openSource !== `${keyBase}-${si}`) return null;
+            return (
+              <div className="src-drawer" key={si}>
+                <div className="sd-hd">
+                  <div className="sd-title">Source {si + 1} — Retrieved Passage</div>
+                  <div className="sd-close" onClick={() => onOpenSource?.(null)}>✕</div>
+                </div>
+                <div className="sd-text">{s.chunk?.text}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
