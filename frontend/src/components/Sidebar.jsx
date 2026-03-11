@@ -14,28 +14,41 @@ const querySteps = [
   { lbl: 'LLM', sub: 'Cited answer generation', stage: 'answer' },
 ];
 
-export default function Sidebar({ doc, onFileLoad, onProcess, onReset, canProcess, loading, queryStage = 0 }) {
-  const { fileName, fileSize, pageCount, chunks, index, processing, processed, progress, progressLabel, error, reset } = doc;
-  const hasFile = !!fileName;
+export default function Sidebar({ doc, onFileLoad, onFilesLoad, onProcess, onReset, canProcess, loading, queryStage = 0 }) {
+  const { docs, chunks, index, processing, processed, progress, progressLabel, error, reset, removeDoc, pageCount } = doc;
+  const hasFile = docs?.length > 0;
 
   const archStep = processing ? (progress < 20 ? 1 : progress < 40 ? 2 : progress < 70 ? 3 : progress < 90 ? 4 : 5) : processed ? 5 : 0;
+
+  const handleFile = (file, append) => {
+    onFileLoad(file, append);
+  };
+
+  const handleFiles = (files, append = false) => {
+    onFilesLoad?.(files, append);
+  };
 
   return (
     <aside className="sb">
       <div className="sb-sec">
         <div className="sec-lbl">📂 Document</div>
         {!hasFile ? (
-          <FileUpload onFileLoad={onFileLoad} disabled={processing} />
+          <FileUpload onFileLoad={handleFile} onFilesLoad={handleFiles} disabled={processing} multiple />
         ) : null}
         {error && <p className="text-sm" style={{ color: 'var(--red)' }}>{error}</p>}
         {hasFile && (
-          <div className="file-card">
-            <div className="fc-icon">📋</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="fc-name">{fileName}</div>
-              <div className="fc-meta">{(fileSize / 1024).toFixed(1)} KB · {pageCount} pages</div>
-            </div>
-            <div className="fc-rm" onClick={() => { reset(); onReset?.(); }} title="Remove document">✕</div>
+          <div className="doc-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {docs.map((d) => (
+              <div key={d.docName || d.name} className="file-card">
+                <div className="fc-icon">📋</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="fc-name">{(d.name || d.docName || '').slice(0, 40)}{(d.name || d.docName || '').length > 40 ? '…' : ''}</div>
+                  <div className="fc-meta">{(d.size / 1024).toFixed(1)} KB · {d.pages || 0} pages</div>
+                </div>
+                <div className="fc-rm" onClick={() => removeDoc(d.docName || d.name)} title="Remove">✕</div>
+              </div>
+            ))}
+            <FileUpload addMode append onFileLoad={(f) => handleFile(f, true)} onFilesLoad={(fs) => handleFiles(fs, true)} disabled={processing} multiple />
           </div>
         )}
       </div>
@@ -65,9 +78,9 @@ export default function Sidebar({ doc, onFileLoad, onProcess, onReset, canProces
           <div className="sec-lbl">📊 Index Stats</div>
           <div className="stats">
             <div className="stat"><div className="stat-v">{chunks?.length ?? 0}</div><div className="stat-l">Chunks</div></div>
-            <div className="stat"><div className="stat-v">{pageCount ?? 0}</div><div className="stat-l">Pages</div></div>
-            <div className="stat"><div className="stat-v">{index ? Object.keys(index.idf).length : 0}</div><div className="stat-l">Index Terms</div></div>
-            <div className="stat"><div className="stat-v">BM25</div><div className="stat-l">Algorithm</div></div>
+            <div className="stat"><div className="stat-v">{docs?.length ?? 0}</div><div className="stat-l">Docs</div></div>
+            <div className="stat"><div className="stat-v">{index ? Object.keys(index.idf).length : 0}</div><div className="stat-l">Terms</div></div>
+            <div className="stat"><div className="stat-v">BM25</div><div className="stat-l">Algo</div></div>
           </div>
         </div>
       )}

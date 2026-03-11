@@ -36,7 +36,7 @@ export default function ChatArea({ messages, loading, loadingStage, processed, o
           />
         ))
       )}
-      {loading && (
+      {loading && (loadingStage?.toLowerCase().includes('expanding') || loadingStage?.toLowerCase().includes('retrieving')) && (
         <div className="msg msg-a">
           <div className="msg-lbl">DOCQUERY</div>
           <div className="thinking">

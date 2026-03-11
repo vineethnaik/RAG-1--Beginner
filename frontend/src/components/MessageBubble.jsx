@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -101,9 +103,27 @@ function renderMarkdown(text) {
   return out.join('');
 }
 
+function stripHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
 export default function MessageBubble({ message, msgIndex, openSource, onOpenSource }) {
   const isUser = message.role === 'user';
   const keyBase = `${msgIndex}`;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e) => {
+    e.stopPropagation();
+    const text = message.text || message.error || '';
+    const plain = stripHtml(text).replace(/\[Source \d+\]/g, '');
+    try {
+      await navigator.clipboard.writeText(plain);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (_) {}
+  };
 
   return (
     <div className={`msg msg-${isUser ? 'u' : 'a'}`}>
@@ -111,10 +131,17 @@ export default function MessageBubble({ message, msgIndex, openSource, onOpenSou
       {message.error ? (
         <div className="err">⚠️ {message.error}</div>
       ) : (
-        <div
-          className={`bubble ${isUser ? 'b-u' : 'b-a'}`}
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text || '') }}
-        />
+        <div className={`msg-a-wrap ${!isUser ? 'has-copy' : ''}`}>
+          {!isUser && (
+            <button type="button" className={`copy-btn ${copied ? 'copied' : ''}`} onClick={handleCopy} title="Copy">
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+          )}
+          <div
+            className={`bubble ${isUser ? 'b-u' : 'b-a'} ${message.streaming ? 'stream-cursor' : ''}`}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text || '') }}
+          />
+        </div>
       )}
       {!isUser && message.sources?.length > 0 && (
         <div className="srcs">
@@ -123,6 +150,7 @@ export default function MessageBubble({ message, msgIndex, openSource, onOpenSou
             {message.sources.map((s, si) => {
               const key = `${keyBase}-${si}`;
               const isOpen = openSource === key;
+              const docName = s.chunk?.docName;
               return (
                 <div
                   key={si}
@@ -130,7 +158,7 @@ export default function MessageBubble({ message, msgIndex, openSource, onOpenSou
                   onClick={() => onOpenSource?.(isOpen ? null : key)}
                 >
                   <span className="src-n">S{si + 1}</span>
-                  Source {si + 1}
+                  {docName ? `${docName} · Source ${si + 1}` : `Source ${si + 1}`}
                 </div>
               );
             })}
@@ -140,7 +168,7 @@ export default function MessageBubble({ message, msgIndex, openSource, onOpenSou
             return (
               <div className="src-drawer" key={si}>
                 <div className="sd-hd">
-                  <div className="sd-title">Source {si + 1} — Retrieved Passage</div>
+                  <div className="sd-title">Source {si + 1}{s.chunk?.docName ? ` — ${s.chunk.docName}` : ''}</div>
                   <div className="sd-close" onClick={() => onOpenSource?.(null)}>✕</div>
                 </div>
                 <div className="sd-text">{s.chunk?.text}</div>

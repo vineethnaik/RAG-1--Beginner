@@ -9,9 +9,7 @@ function delay(ms) {
 
 export function useDocumentStore() {
   const [state, setState] = useState({
-    fileName: '',
-    fileSize: 0,
-    pageCount: 0,
+    docs: [],
     chunks: [],
     index: null,
     processing: false,
@@ -21,21 +19,19 @@ export function useDocumentStore() {
     error: null,
   });
 
-  const loadFile = useCallback(async (file) => {
+  const loadFile = useCallback(async (file, append = false) => {
     if (!file || file.type !== 'application/pdf') return null;
-    setState(s => ({
-      ...s,
-      fileName: file.name,
-      fileSize: file.size,
-      pageCount: 0,
-      chunks: [],
-      index: null,
-      processed: false,
-      error: null,
-    }));
+    setState(s => ({ ...s, error: null }));
     try {
       const { text, pageCount } = await extractTextFromPdf(file);
-      setState(s => ({ ...s, pageCount }));
+      const doc = { name: file.name, docName: file.name, size: file.size, pages: pageCount, text };
+      setState(s => ({
+        ...s,
+        docs: append ? [...s.docs, doc] : [doc],
+        chunks: [],
+        index: null,
+        processed: false,
+      }));
       return text;
     } catch (err) {
       setState(s => ({ ...s, error: err.message }));
@@ -43,33 +39,68 @@ export function useDocumentStore() {
     }
   }, []);
 
-  const processText = useCallback(async (text, fileName) => {
-    if (!text) return null;
-    setState(s => ({ ...s, processing: true, progress: 10, progressLabel: 'Chunking...', error: null }));
+  const loadFiles = useCallback(async (files, append = false) => {
+    const results = [];
+    for (const file of Array.from(files || [])) {
+      if (file?.type === 'application/pdf') {
+        const text = await loadFile(file, append || results.length > 0);
+        if (text) results.push({ file, text });
+      }
+    }
+    return results;
+  }, [loadFile]);
+
+  const removeDoc = useCallback((docName) => {
+    setState(s => {
+      const docs = s.docs.filter(d => d.docName !== docName);
+      return {
+        ...s,
+        docs,
+        chunks: [],
+        index: null,
+        processed: false,
+      };
+    });
+  }, []);
+
+  const processDocs = useCallback(async (chunkSize = 600) => {
+    let docs = [];
+    setState(s => {
+      docs = s.docs;
+      return { ...s, processing: true, progress: 10, progressLabel: 'Chunking...', error: null };
+    });
+    if (!docs.length) return null;
+
     await delay(200);
-    const chunks = chunkText(text, 600, 100);
-    setState(s => ({ ...s, progress: 50, progressLabel: `${chunks.length} chunks created` }));
+
+    const allChunks = [];
+    for (const doc of docs) {
+      const docChunks = chunkText(doc.text, chunkSize, 100, doc.docName);
+      allChunks.push(...docChunks);
+    }
+
+    setState(s => ({ ...s, progress: 50, progressLabel: `${allChunks.length} chunks created` }));
     await delay(200);
-    const index = buildIndex(chunks);
+
+    const index = buildIndex(allChunks);
     setState(s => ({ ...s, progress: 90, progressLabel: 'Building BM25 index...' }));
     await delay(200);
+
     setState(s => ({
       ...s,
-      chunks,
+      chunks: allChunks,
       index,
       processing: false,
       processed: true,
       progress: 100,
       progressLabel: 'Ready!',
     }));
-    return { chunks, index };
+    return { chunks: allChunks, index };
   }, []);
 
   const reset = useCallback(() => {
     setState({
-      fileName: '',
-      fileSize: 0,
-      pageCount: 0,
+      docs: [],
       chunks: [],
       index: null,
       processing: false,
@@ -80,5 +111,19 @@ export function useDocumentStore() {
     });
   }, []);
 
-  return { ...state, loadFile, processText, reset };
+  const pageCount = state.docs.reduce((s, d) => s + (d.pages || 0), 0);
+  const fileName = state.docs.length === 1 ? state.docs[0]?.name : `${state.docs.length} documents`;
+  const fileSize = state.docs.reduce((s, d) => s + (d.size || 0), 0);
+
+  return {
+    ...state,
+    pageCount,
+    fileName,
+    fileSize,
+    loadFile,
+    loadFiles,
+    removeDoc,
+    processDocs,
+    reset,
+  };
 }

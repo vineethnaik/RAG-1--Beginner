@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 
-export default function FileUpload({ onFileLoad, disabled }) {
+export default function FileUpload({ onFileLoad, onFilesLoad, disabled, multiple = false, addMode = false, append = false }) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState(null);
   const fileRef = useRef(null);
@@ -28,28 +28,47 @@ export default function FileUpload({ onFileLoad, disabled }) {
     e.preventDefault();
     setIsDragging(false);
     if (disabled) return;
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    if (file.type !== 'application/pdf') {
-      setError('Please upload a PDF file');
-      return;
+    const files = e.dataTransfer.files;
+    if (!files?.length) return;
+    if (multiple && files.length > 1) {
+      setError(null);
+      processingRef.current = true;
+      onFilesLoad?.(files, append) ?? Array.from(files).forEach(f => f.type === 'application/pdf' && onFileLoad?.(f, append));
+      setTimeout(() => { processingRef.current = false; }, 500);
+    } else {
+      const file = files[0];
+      if (file.type !== 'application/pdf') {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setError(null);
+      processingRef.current = true;
+      onFileLoad?.(file, append);
+      setTimeout(() => { processingRef.current = false; }, 500);
     }
-    setError(null);
-    onFileLoad(file);
   };
 
   const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type !== 'application/pdf') {
-      setError('Please upload a PDF file');
-      return;
+    const files = e.target.files;
+    if (!files?.length) return;
+    if (multiple && files.length > 1) {
+      setError(null);
+      processingRef.current = true;
+      onFilesLoad?.(files, append);
+      e.target.value = '';
+      setTimeout(() => { processingRef.current = false; }, 500);
+    } else {
+      const file = files[0];
+      if (file.type !== 'application/pdf') {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setError(null);
+      processingRef.current = true;
+      onFileLoad?.(file, append);
+      e.target.value = '';
+      setTimeout(() => { processingRef.current = false; }, 500);
     }
-    setError(null);
-    processingRef.current = true;
-    onFileLoad(file);
-    e.target.value = '';
-    setTimeout(() => { processingRef.current = false; }, 500);
   };
 
   return (
@@ -59,6 +78,7 @@ export default function FileUpload({ onFileLoad, disabled }) {
         type="file"
         accept=".pdf,application/pdf"
         onChange={handleFileSelect}
+        multiple={multiple}
         style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
         disabled={disabled}
         tabIndex={-1}
@@ -71,9 +91,15 @@ export default function FileUpload({ onFileLoad, disabled }) {
         onClick={handleClick}
         style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, position: 'relative' }}
       >
-        <div className="dz-icon">📄</div>
-        <div className="dz-title">Drop PDF here</div>
-        <div className="dz-hint">or click to browse</div>
+        {addMode ? (
+          <span className="dz-title">+ Add another PDF</span>
+        ) : (
+          <>
+            <div className="dz-icon">📄</div>
+            <div className="dz-title">Drop PDF here</div>
+            <div className="dz-hint">{multiple ? 'or click to browse (multiple allowed)' : 'or click to browse'}</div>
+          </>
+        )}
       </div>
       {error && <p className="text-sm" style={{ color: 'var(--red)' }}>{error}</p>}
     </div>
