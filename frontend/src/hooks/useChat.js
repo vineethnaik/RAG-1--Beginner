@@ -31,6 +31,7 @@ export function useChat(chunks, index) {
         { role: 'assistant', text: answer, sources: topChunks, expandedTerms: terms },
       ]);
     } catch (e) {
+      setQueryStage(4);
       setMessages(prev => [
         ...prev,
         { role: 'assistant', text: null, error: e.message, sources: [] },
