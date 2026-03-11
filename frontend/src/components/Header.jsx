@@ -1,25 +1,18 @@
-import { FileText, Loader2 } from 'lucide-react';
-
 export default function Header({ loading, stage, processed, chunkCount }) {
-  const statusText = loading ? stage : processed ? `${chunkCount} chunks indexed` : 'Ready';
-  const statusColor = loading ? 'text-accent-gold' : processed ? 'text-status-success' : 'text-text-secondary';
+  const badgeText = loading ? (stage || 'THINKING').toUpperCase() : processed ? `BM25 · ${chunkCount} CHUNKS` : 'AWAITING PDF';
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-[58px] bg-dark-surface border-b border-dark-border z-50 flex items-center justify-between px-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-accent-gold to-accent-orange flex items-center justify-center">
-          <FileText className="w-5 h-5 text-dark-bg" />
-        </div>
+    <header className="hd">
+      <div className="logo">
+        <div className="logo-mark">🔍</div>
         <div>
-          <h1 className="font-serif text-lg text-text-primary">DocQuery</h1>
-          <p className="text-xs text-text-muted">RAG PDF Chatbot</p>
+          <div className="logo-name">DocQuery</div>
+          <div className="logo-tag">RAG · PDF Intelligence</div>
         </div>
       </div>
-      <div className={`flex items-center gap-2 text-sm ${statusColor}`}>
-        {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : null}
-        <span>{statusText}</span>
+      <div className="badge">
+        <div className={`dot ${loading ? 'dot-busy' : processed ? 'dot-on' : 'dot-idle'}`} />
+        {badgeText}
       </div>
     </header>
   );
